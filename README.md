@@ -45,7 +45,7 @@ shipment-tracker/
 
 │
 
-├── .env                          # Environment Variables (Not committed to git)
+├── .env                          # Environment Variables
 
 ├── hammond_shipment_tracker.exe  # Main Program
 
