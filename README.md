@@ -14,7 +14,9 @@ Place hammond_shipment_tracker.exe in a directory along with a .env file and all
 Inside of your .env file include the following:
 
 FEDEX_CLIENT_ID=your_client_id
+
 FEDEX_CLIENT_SECRET=your_secret
+
 ADUIEPYLE_EMAIL=your_email@example.com
 
 Fill in the placeholders with your own credentials.
@@ -27,8 +29,14 @@ The spreadsheet must have the following 3 headers on the first line, they must b
 An example of how the project directory should look:
 
 shipment-tracker/
+
 │
+
 ├── .env                          # Environment Variables (Not committed to git)
+
 ├── hammond_shipment_tracker.exe  # Main Program
+
 ├── README.txt                    # Instructions for using the project (your text version)
+
 ├── shipping.xlsx                 # Example Excel file to be processed
+
