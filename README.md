@@ -29,6 +29,8 @@ ADUIEPYLE_EMAIL=your_email@example.com
 
 Fill in the placeholders with your own credentials.
 
+The file must be called exactly .env, do NOT include a name before the .env or the program will not function, also make sure the file is of type ENV. To create an env file first make a .txt file and put the credentials above inside the file, then click File, Save As, name the file name: .env, and set the Save as type to All Files.
+
 
 Your spreadsheets MUST follow this format:
 
