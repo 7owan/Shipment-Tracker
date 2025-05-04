@@ -16,7 +16,7 @@ Features:
 Instructions:
 
 
-Place hammond_shipment_tracker.exe in a directory along with a .env file and all the spreadsheets you wish to update.
+Place shipment_tracker.exe in a directory along with a .env file and all the spreadsheets you wish to update.
 
 Inside of your .env file include the following:
 
@@ -47,7 +47,7 @@ shipment-tracker/
 
 ├── .env                          # Environment Variables
 
-├── hammond_shipment_tracker.exe  # Main Program
+├── shipment_tracker.exe  # Main Program
 
 ├── README.txt                    # Instructions for using the project (your text version)
 
