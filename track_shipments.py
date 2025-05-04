@@ -56,7 +56,7 @@ def get_delivery_date_fedex(access_token, tracking_number):
         print(f"\nFedEx error: {e}")
     return None
 
-def get_shipment_status_aduiepyle(user_email, tracking_number):
+def get_delivery_date_aduiepyle(user_email, tracking_number):
     url = "https://api.aduiepyle.com/2/shipment/status"
     params = {
         'user': user_email,
@@ -126,7 +126,7 @@ def process_tracking_sheet(filename, sheet_name="Sheet1"):
             if carrier == "FEP" and fedex_token:
                 date = get_delivery_date_fedex(fedex_token, tracking)
             elif carrier == "DUE":
-                date = get_shipment_status_aduiepyle(ADUIEPYLE_EMAIL, tracking)
+                date = get_delivery_date_aduiepyle(ADUIEPYLE_EMAIL, tracking)
             else:
                 date = None  # Unknown carrier
         except Exception as e:
