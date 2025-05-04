@@ -51,7 +51,7 @@ def get_delivery_date_fedex(access_token, tracking_number):
         dates = shipment.get("dateAndTimes", [])
         for date in dates:
             if date["type"] in ["ACTUAL_DELIVERY", "ESTIMATED_DELIVERY"]:
-                return date["dateTime"][:19]
+                return date["dateTime"][:10]
     except Exception as e:
         print(f"\nFedEx error: {e}")
     return None
@@ -69,7 +69,7 @@ def get_delivery_date_aduiepyle(user_email, tracking_number):
             root = ElementTree.fromstring(response.text)
             for status in root.findall(".//statusDetail"):
                 if status.find("description").text == "DELIVERED":
-                    return status.find("start").text
+                    return status.find("start").text[:10]
         except ElementTree.ParseError as e:
             print(f"\nXML parse error: {e}")
     return None
@@ -124,7 +124,7 @@ def process_tracking_sheet(filename, sheet_name="Sheet1"):
             continue
 
         try:
-            if carrier == "FEP" and fedex_token:
+            if carrier in ["FEP", "FEE", "FEU", "FEA", "FED", "FEC"] and fedex_token:
                 date = get_delivery_date_fedex(fedex_token, tracking)
             elif carrier == "DUE":
                 date = get_delivery_date_aduiepyle(ADUIEPYLE_EMAIL, tracking)
