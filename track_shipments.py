@@ -97,11 +97,12 @@ def process_tracking_sheet(filename, sheet_name="Sheet1"):
     }
 
     for idx, header in enumerate(header_row):
-        if header == "Carrier":
+        header_lower = header.lower()
+        if header_lower == "carrier":
             col_indices["Carrier"] = idx
-        elif header == "Pro #":
+        elif header_lower in ["pro #", "pro number"]:
             col_indices["Tracking"] = idx
-        elif header.strip() == "Delivered DATE":
+        elif header_lower == "delivered date":
             col_indices["Delivered"] = idx
 
     if None in col_indices.values():
