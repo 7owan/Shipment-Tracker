@@ -4,9 +4,9 @@ Shipment Tracker is a Python script that reads tracking numbers from Excel files
 Features:
 
 
-1. Supports FedEx and A. Duie Pyle tracking.
+1. Supports FedEx, UPS, and, A. Duie Pyle tracking.
    
-3. Reads .xlsx files with the following columns: Carrier, Pro #, Delivered DATE.
+3. Reads .xlsx files with the following columns: Carrier, Pro #, Delivered Date.
    
 5. Skips rows that already have a delivery date filled in.
    
@@ -21,11 +21,15 @@ Place shipment_tracker.exe in a directory along with a .env file and all the spr
 Inside of your .env file include the following:
 
 
-FEDEX_CLIENT_ID=your_client_id
+FEDEX_CLIENT_ID=your_fedex_id
 
-FEDEX_CLIENT_SECRET=your_secret
+FEDEX_CLIENT_SECRET=your_fedex_secret
 
 ADUIEPYLE_EMAIL=your_email@example.com
+
+UPS_CLIENT_ID=your_ups_id
+
+UPS_CLIENT_SECRET=your_ups_secret
 
 Fill in the placeholders with your own credentials.
 
@@ -35,7 +39,7 @@ The file must be called exactly .env, do NOT include a name before the .env or t
 Your spreadsheets MUST follow this format:
 
 
-Must have atleast 3 distinct columns, named: Carrier, Pro #, Delivered DATE.
+Must have atleast 3 distinct columns, named: Carrier, Pro #, Delivered Date.
 The spreadsheet must have the following 3 headers on the first line, they must be named exactly the same (non-case sensitive), and the order they are in does not matter.
 
 An example of how the project directory should look:
@@ -51,5 +55,5 @@ shipment-tracker/
 
 ├── README.txt                    # Instructions for using the project (your text version)
 
-├── shipping.xlsx                 # Example Excel file to be processed
+├── shipping.xlsx                 # Excel file
 
