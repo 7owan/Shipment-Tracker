@@ -12,6 +12,8 @@ import keyboard
 from threading import Lock, Event
 
 load_dotenv()
+aduie_lock = Lock()
+last_aduie_time = 0
 
 def print_progress_bar(iteration, total, length=40):
     percent = f"{100 * (iteration / float(total)):.1f}"
@@ -66,21 +68,31 @@ def get_delivery_date_fedex(access_token, tracking_number):
     return None
 
 def get_delivery_date_aduiepyle(user_email, tracking_number):
+    global last_aduie_time
     url = "https://api.aduiepyle.com/2/shipment/status"
     params = {
         'user': user_email,
         'type': 0,
         'value': tracking_number
     }
-    try:
-        response = requests.get(url, params=params)
-        if response.status_code == 200:
-            root = ElementTree.fromstring(response.text)
-            for status in root.findall(".//statusDetail"):
-                if status.find("description").text == "DELIVERED":
-                    return status.find("start").text[:10]
-    except Exception as e:
-        return None
+
+    with aduie_lock:
+        # Ensure 3+ seconds between aduie calls
+        elapsed = time.time() - last_aduie_time
+        wait_time = max(2.5 - elapsed, 0)
+        if wait_time > 0:
+            time.sleep(wait_time)
+        last_aduie_time = time.time()
+
+        try:
+            response = requests.get(url, params=params)
+            if response.status_code == 200:
+                root = ElementTree.fromstring(response.text)
+                for status in root.findall(".//statusDetail"):
+                    if status.find("description").text == "DELIVERED":
+                        return status.find("start").text[:10]
+        except Exception as e:
+            return None
     return None
 
 def format_ups_date(date_str):
