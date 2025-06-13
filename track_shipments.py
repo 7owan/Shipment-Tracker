@@ -8,10 +8,9 @@ from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from datetime import datetime
-import keyboard
-from threading import Lock, Event
 
 load_dotenv()
+
 aduie_lock = Lock()
 last_aduie_time = 0
 
@@ -24,6 +23,17 @@ def print_progress_bar(iteration, total, length=40):
 
 def clean_cell(cell):
     return str(cell.value or "").strip()
+
+def get_manitoulin_auth_token():
+    url = "https://www.mtdirect.ca/api/users/auth"
+    payload = {
+        "username": MANITOULIN_USERNAME,
+        "token": MANITOULIN_LONG_TOKEN,
+        "company": "MANITOULIN"
+    }
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+    return response.json().get("token")
 
 def get_fedex_auth_token(client_id, client_secret):
     url = "https://apis.fedex.com/oauth/token"
@@ -63,7 +73,7 @@ def get_delivery_date_fedex(access_token, tracking_number):
         for date in shipment.get("dateAndTimes", []):
             if date["type"] in ["ACTUAL_DELIVERY", "ESTIMATED_DELIVERY"]:
                 return date["dateTime"][:10]
-    except Exception as e:
+    except Exception:
         return None
     return None
 
@@ -77,7 +87,6 @@ def get_delivery_date_aduiepyle(user_email, tracking_number):
     }
 
     with aduie_lock:
-        # Ensure 3+ seconds between aduie calls
         elapsed = time.time() - last_aduie_time
         wait_time = max(2.5 - elapsed, 0)
         if wait_time > 0:
@@ -91,7 +100,7 @@ def get_delivery_date_aduiepyle(user_email, tracking_number):
                 for status in root.findall(".//statusDetail"):
                     if status.find("description").text == "DELIVERED":
                         return status.find("start").text[:10]
-        except Exception as e:
+        except Exception:
             return None
     return None
 
@@ -114,14 +123,30 @@ def get_delivery_date_ups(access_token, tracking_number):
         for activity in activities:
             if activity.get("status", {}).get("type") == "D":
                 return format_ups_date(activity["date"])
-    except Exception as e:
+    except Exception:
         return None
     return None
 
-def track_package(row_idx, row, col_indices, fedex_token, ad_email, ups_token, stop_event):
-    if stop_event.is_set():
-        return row_idx, None
+def get_delivery_date_manitoulin(token, probill_number):
+    url = f"https://www.mtdirect.ca/api/probill/search/{probill_number}"
+    headers = {
+        "Authorization": f"Token {token}",
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            delivered_on = data.get("details", {}).get("delivered_on", "")
+            date_only = delivered_on.split(" at ")[0] if " at " in delivered_on else delivered_on
+            return date_only if date_only else None
+        else:
+            print(f"[-] Manitoulin tracking failed for {probill_number}: {response.status_code}")
+    except Exception as e:
+        print(f"[-] Manitoulin tracking error for {probill_number}: {e}")
+    return None
 
+def track_package(row_idx, row, col_indices, fedex_token, ad_email, ups_token, manitoulin_token):
     carrier = clean_cell(row[col_indices["Carrier"]]).upper()
     tracking = clean_cell(row[col_indices["Tracking"]])
     delivered_value = clean_cell(row[col_indices["Delivered"]])
@@ -136,14 +161,19 @@ def track_package(row_idx, row, col_indices, fedex_token, ad_email, ups_token, s
             date = get_delivery_date_aduiepyle(ad_email, tracking)
         elif carrier in ["UPS", "BLU", "UPO", "RED"]:
             date = get_delivery_date_ups(ups_token, tracking)
+        elif carrier == "MAN":
+            if not manitoulin_token:
+                date = None
+            else:
+                date = get_delivery_date_manitoulin(manitoulin_token, tracking)
         else:
-            return row_idx, None
+            date = None
     except Exception as e:
         date = f"Tracking error: {e}"
 
     return row_idx, date
 
-def process_tracking_sheet(filename, fedex_token, ad_email, ups_token, sheet_name="Sheet1"):
+def process_tracking_sheet(filename, fedex_token, ad_email, ups_token, manitoulin_token, sheet_name="Sheet1"):
     wb = load_workbook(filename)
     ws = wb.active
 
@@ -154,7 +184,7 @@ def process_tracking_sheet(filename, fedex_token, ad_email, ups_token, sheet_nam
         header_lower = header.lower()
         if header_lower == "carrier":
             col_indices["Carrier"] = idx
-        elif header_lower in ["pro #", "pro number"]:
+        elif header_lower in ["pro #", "pro number", "tracking"]:
             col_indices["Tracking"] = idx
         elif header_lower == "delivered date":
             col_indices["Delivered"] = idx
@@ -166,25 +196,16 @@ def process_tracking_sheet(filename, fedex_token, ad_email, ups_token, sheet_nam
     rows = list(ws.iter_rows(min_row=2))
     total_rows = len(rows)
     updated_rows = 0
-    stop_event = Event()
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
         for i, row in enumerate(rows):
-            if keyboard.is_pressed('esc'):
-                print("\nEsc pressed. Stopping early before submission...")
-                stop_event.set()
-                break
-            futures.append(executor.submit(track_package, i, row, col_indices, fedex_token, ad_email, ups_token, stop_event))
+            futures.append(executor.submit(track_package, i, row, col_indices, fedex_token, ad_email, ups_token, manitoulin_token))
 
         progress_lock = Lock()
         completed = 0
 
         for f in as_completed(futures):
-            if stop_event.is_set() or keyboard.is_pressed('esc'):
-                print("\nEsc pressed during execution. Stopping early...")
-                stop_event.set()
-                break
             idx, result = f.result()
             if result:
                 rows[idx][col_indices["Delivered"]].value = result
@@ -205,6 +226,8 @@ if __name__ == "__main__":
     ADUIEPYLE_EMAIL = os.getenv("ADUIEPYLE_EMAIL")
     UPS_CLIENT_ID = os.getenv("UPS_CLIENT_ID")
     UPS_CLIENT_SECRET = os.getenv("UPS_CLIENT_SECRET")
+    MANITOULIN_USERNAME = os.getenv("MANITOULIN_USERNAME")
+    MANITOULIN_LONG_TOKEN = os.getenv("MANITOULIN_LONG_TOKEN")
 
     try:
         FEDEX_TOKEN = get_fedex_auth_token(FEDEX_CLIENT_ID, FEDEX_CLIENT_SECRET)
@@ -218,11 +241,13 @@ if __name__ == "__main__":
         print("UPS auth error:", e)
         UPS_TOKEN = None
 
+    MANITOULIN_TOKEN = get_manitoulin_auth_token()
+
     for file_name in os.listdir():
         if file_name.endswith(".xlsx"):
             try:
                 print(f"Processing: {file_name}")
-                process_tracking_sheet(file_name, fedex_token=FEDEX_TOKEN, ad_email=ADUIEPYLE_EMAIL, ups_token=UPS_TOKEN)
+                process_tracking_sheet(file_name, fedex_token=FEDEX_TOKEN, ad_email=ADUIEPYLE_EMAIL, ups_token=UPS_TOKEN, manitoulin_token=MANITOULIN_TOKEN)
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
 
