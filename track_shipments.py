@@ -55,6 +55,50 @@ def get_ups_auth_token(client_id, client_secret):
     response.raise_for_status()
     return response.json()["access_token"]
 
+def format_loomis_date(date_str):
+    return datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
+
+def get_delivery_date_loomis(tracking_number):
+    url = "https://webservice.loomis-express.com/LShip/services/USSAddonsService.USSAddonsServiceHttpsSoap12Endpoint/"
+
+    soap_body = f"""<?xml version="1.0" encoding="utf-8"?>
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                      xmlns:ws="http://ws.addons.uss.transforce.ca"
+                      xmlns:xsd="http://ws.addons.uss.transforce.ca/xsd">
+       <soapenv:Header/>
+       <soapenv:Body>
+          <ws:trackByBarcode>
+             <ws:request>
+                <xsd:barcode>{tracking_number}</xsd:barcode>
+                <xsd:track_shipment>false</xsd:track_shipment>
+             </ws:request>
+          </ws:trackByBarcode>
+       </soapenv:Body>
+    </soapenv:Envelope>
+    """
+
+    headers = {
+        "Content-Type": "text/xml;charset=UTF-8",
+        "SOAPAction": ""
+    }
+
+    try:
+        response = requests.post(url, data=soap_body, headers=headers)
+        response.raise_for_status()
+        root = ElementTree.fromstring(response.text)
+        ns = {
+            'ax23': 'http://dto.uss.transforce.ca/xsd'
+        }
+        for event in root.findall('.//ax23:events', ns):
+            code = event.find('ax23:code', ns)
+            if code is not None and code.text in ("DEL", "NSR", "SGR", "DES"):
+                date_time = event.find('ax23:local_date_time', ns)
+                if date_time is not None:
+                    return format_loomis_date(date_time.text[:8])
+    except Exception:
+        return None
+    return None
+
 def get_delivery_date_fedex(access_token, tracking_number):
     url = "https://apis.fedex.com/track/v1/trackingnumbers"
     headers = {
@@ -166,6 +210,8 @@ def track_package(row_idx, row, col_indices, fedex_token, ad_email, ups_token, m
                 date = None
             else:
                 date = get_delivery_date_manitoulin(manitoulin_token, tracking)
+        elif carrier in ["LOO", "LAI"]:
+            date = get_delivery_date_loomis(tracking)
         else:
             date = None
     except Exception as e:
