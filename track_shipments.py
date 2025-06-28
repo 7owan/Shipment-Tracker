@@ -55,6 +55,93 @@ def get_ups_auth_token(client_id, client_secret):
     response.raise_for_status()
     return response.json()["access_token"]
 
+def format_tstcf_date(date_str):
+    """Convert YYYYMMDD to YYYY-MM-DD"""
+    return datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
+
+def get_delivery_date_tstcf(requestor, authorization, tracking_number):
+    """
+    Calls TST-CF Express API and returns the delivery date if delivered.
+    """
+    url = "https://www.tst-cfexpress.com/xml/tracing"
+    
+    xml_payload = f"""<?xml version="1.0" encoding="ISO-8859-1"?>
+<tracingrequest>
+  <requestor>{requestor}</requestor>
+  <authorization>{authorization}</authorization>
+  <language>en</language>
+  <tracetype>P</tracetype>
+  <traceitems>
+    <item>{tracking_number}</item>
+  </traceitems>
+</tracingrequest>
+"""
+
+    headers = {"Content-Type": "text/xml; charset=ISO-8859-1"}
+
+    try:
+        response = requests.post(url, data=xml_payload.encode("ISO-8859-1"), headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        root = ElementTree.fromstring(response.text)
+        
+        for traceitem in root.findall(".//traceitem"):
+            valid = traceitem.findtext("valid")
+            if valid != "Y":
+                return None
+            delivery = traceitem.find("delivery")
+            if delivery is not None:
+                date_el = delivery.find("date")
+                if date_el is not None and date_el.text:
+                    return format_tstcf_date(date_el.text)
+    except Exception as e:
+        return f"TSTCF error: {e}"
+
+    return None
+def format_tstcf_date(date_str):
+    """Convert YYYYMMDD to YYYY-MM-DD"""
+    return datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
+
+def get_delivery_date_tstcf(requestor, authorization, tracking_number):
+    """
+    Calls TST-CF Express API and returns the delivery date if delivered.
+    """
+    url = "https://www.tst-cfexpress.com/xml/tracing"
+    
+    xml_payload = f"""<?xml version="1.0" encoding="ISO-8859-1"?>
+<tracingrequest>
+  <requestor>{requestor}</requestor>
+  <authorization>{authorization}</authorization>
+  <language>en</language>
+  <tracetype>P</tracetype>
+  <traceitems>
+    <item>{tracking_number}</item>
+  </traceitems>
+</tracingrequest>
+"""
+
+    headers = {"Content-Type": "text/xml; charset=ISO-8859-1"}
+
+    try:
+        response = requests.post(url, data=xml_payload.encode("ISO-8859-1"), headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        root = ElementTree.fromstring(response.text)
+        
+        for traceitem in root.findall(".//traceitem"):
+            valid = traceitem.findtext("valid")
+            if valid != "Y":
+                return None
+            delivery = traceitem.find("delivery")
+            if delivery is not None:
+                date_el = delivery.find("date")
+                if date_el is not None and date_el.text:
+                    return format_tstcf_date(date_el.text)
+    except Exception as e:
+        return f"TSTCF error: {e}"
+
+    return None
+
 def format_loomis_date(date_str):
     return datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
 
@@ -212,6 +299,8 @@ def track_package(row_idx, row, col_indices, fedex_token, ad_email, ups_token, m
                 date = get_delivery_date_manitoulin(manitoulin_token, tracking)
         elif carrier in ["LOO", "LAI"]:
             date = get_delivery_date_loomis(tracking)
+        elif carrier == "TST":
+            date = get_delivery_date_tstcf(TSTCF_REQUESTOR, TSTCF_AUTHORIZATION, tracking)
         else:
             date = None
     except Exception as e:
@@ -274,6 +363,8 @@ if __name__ == "__main__":
     UPS_CLIENT_SECRET = os.getenv("UPS_CLIENT_SECRET")
     MANITOULIN_USERNAME = os.getenv("MANITOULIN_USERNAME")
     MANITOULIN_LONG_TOKEN = os.getenv("MANITOULIN_LONG_TOKEN")
+    TSTCF_REQUESTOR = os.getenv("TSTCF_REQUESTOR")
+    TSTCF_AUTHORIZATION = os.getenv("TSTCF_AUTHORIZATION")
 
     try:
         FEDEX_TOKEN = get_fedex_auth_token(FEDEX_CLIENT_ID, FEDEX_CLIENT_SECRET)
